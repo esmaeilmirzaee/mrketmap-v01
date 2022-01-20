@@ -1,24 +1,58 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import {
-    scaleLinear,
     select,
     descendants,
-    groups,
+    line,
     treemap,
     hierarchy,
+    scaleTime,
+    scaleLinear,
+    scaleOrdinal,
+    min,
+    max,
 } from 'd3';
+
+const drawLineChart = (data: any, ref: HTMLDivElement) => {
+    console.log(data);
+    let canvas = select(ref);
+    let svg = canvas
+        .append('svg')
+        .attr('width', 100)
+        .attr('height', 40)
+        .append('g');
+    let x = scaleLinear().domain([0, data.length]).range([0, 100]);
+    let y = scaleLinear()
+        .domain([min(data, (d) => d), max(data, (d) => d)])
+        .range([40, 0]);
+
+    svg.append('path')
+        .datum(data)
+        .attr('fill', 'none')
+        .attr('stroke', 'steelblue')
+        .attr('stroke-width', 1.5)
+        .attr(
+            'd',
+            line()
+                .x(function (d, i, n) {
+                    return x(i);
+                })
+                .y(function (d) {
+                    return y(d);
+                }),
+        );
+};
 
 const drawMarket = (
     ref: HTMLDivElement,
     data: any,
-    size = { w: 954, h: 460, m: { t: 40, r: 10, b: 10, l: 40 } },
+    size = { w: 1200, h: 960, m: { t: 40, r: 10, b: 10, l: 40 } },
 ) => {
     const canvas = select(ref);
 
     if ([...canvas.selectAll('svg')].length > 0) {
         console.log('Clearing');
-        canvas.selectAll('svg').remove();
+        // canvas.selectAll('svg').remove();
     }
     const gW = size.w - size.m.l - size.m.r;
     const gH = size.h - size.m.t - size.m.b;
@@ -37,7 +71,6 @@ const drawMarket = (
 
     const rootData = hierarchy(data.sec);
     rootData.eachAfter((d) => {
-        // console.log(d);
         if (!d.hasOwnProperty('children')) {
             d.value = d.data.value;
         } else {
@@ -61,19 +94,11 @@ const drawMarket = (
         .domain([-3, 0, 3])
         .range(['rgb(243, 43, 2)', '#2A2C36', 'rgb(43, 253, 2)']);
 
-    // const node = g.selectAll('g');
-    // .join('g')
-    // .selectAll('g')
-    // .data((d) => d[1])
-    // .join('g')
-    // .attr('transform', (d) => `translate(${d.x0 + 20}, ${d.y0 + 20})`)
-    // .attr('fill', '#2A2C36CC');
-
     g.selectAll('rect')
         .data(rootData.descendants())
         .enter()
         .append('rect')
-        .attr('id', (d) => (d.nodeUid = d.data.name))
+        .attr('id', (d) => (d.id = d.data.name))
         .attr('x', (d) => d.x0)
         .attr('y', (d) => d.y0)
         .attr('width', (d) => d.x1 - d.x0)
@@ -88,19 +113,18 @@ const drawMarket = (
                 ? '#2A2C36CC'
                 : '#020616',
         );
-    // .attr('transform', `translate(${10}, ${20})`);
 
     g.append('g')
         .selectAll('text')
         .data(rootData.descendants())
         .join('text')
-        .text((d, i, n) => {
-            return d.x1 - d.x0 < 50 || d.y1 - d.y0 < 50
+        .text((d) =>
+            d.x1 - d.x0 < 50 || d.y1 - d.y0 < 50
                 ? ''
                 : d.data.name.length > (d.x1 - d.x0) / 8
                 ? d.data.name.slice(0, 5)
-                : d.data.name;
-        })
+                : d.data.name,
+        )
         .attr('dx', (d) => d.x0 + 3)
         .attr('y', (d) => d.y0 + 15)
         .attr('transform', (d) =>
@@ -109,53 +133,88 @@ const drawMarket = (
                 : '',
         )
         .attr('fill', (d) => (d.depth === 2 ? 'white' : 'white'))
-        .attr('font-weight', (d) => (d.depth === 3 ? 700 : 900));
+        .attr('font-weight', (d) => (d.depth === 3 ? 700 : 900))
+        .attr('data-id', (d) => d.data.name)
+        .style('pointer-events', 'none');
 
-    // g.selectAll('rect')
-    //     .attr('fill', (d) => color(data.map[d.data.name]))
-    //     .attr('fill-opacity', (d, i, n) => {
-    //         return 0.8;
-    //     })
-    //     .attr('id', (d) => d.data.name)
-    //     .attr('stroke', 'black');
+    // Interaction
+    svg.selectAll('rect')
+        .on('mouseover', (e, d) => {
+            if (d.depth < 3) return;
+            // let parentNode = document.getElementById(d.parent.id);
+            // let parentNodeTitle = document.body.querySelectorAll(
+            //     `[data-id=${d.parent.id}]`,
+            // );
+            // if (parentNode !== null) {
+            //     parentNode.style.fill = '#ff0';
+            //     parentNode.style.stroke = '#0ff';
 
-    // g.append('g')
-    //     .selectAll('text')
-    //     .data((d) => d)
-    //     .join('text')
-    //     .each(function () {
-    //         select(this).text((d) => {
-    //             console.log({ depth: d.depth, name: d.data.name }, d);
-    //             switch (d.depth) {
-    //                 case 0: {
-    //                     return d.data.name;
-    //                 }
-    //                 case 1: {
-    //                     return d.data.name;
-    //                 }
-    //             }
-    //         });
-    //     })
-    //     .attr('id', (d) => d.data.name);
+            //     if (parentNodeTitle !== null) {
+            //         parentNodeTitle[0].style.fill = 'black';
+            //         console.log(parentNodeTitle);
+            //     }
+            // }
+            let tooltip;
+            if (document.querySelectorAll('#svg-tooltip')) {
+                tooltip = document.querySelectorAll('#svg-tooltip');
+            }
+            tooltip = document.createElement('div');
+            tooltip.id = 'svg-tooltip';
+            let outerDiv = document.createElement('div');
+            let titleDiv = document.createElement('div');
+            titleDiv.classList.add('tooltip-title');
+            titleDiv.innerText = d.parent.data.name;
+            outerDiv.appendChild(titleDiv);
+            let sortedChildren = d.parent.data.children.filter(
+                (item) => item.name !== d.data.name,
+            );
+            [d.data, ...sortedChildren].map((item, idx) => {
+                let ref = document.createElement('div');
+                ref.id = `${idx}`;
+                drawLineChart(data.sparklines['AESE'], ref);
+                let innerDiv = document.createElement('div');
+                innerDiv.classList.add('svg-innerdiv');
+                innerDiv.innerHTML = `<div class='svg-innerrow'><div>${
+                    item.name
+                }</div><div class='svg-description'>${
+                    d.data.name === item.name ? item.description : ''
+                }</div></div><div></div><div class='svg-innerrow'>$${
+                    item.value
+                }</div><div class='svg-innerrow'>${data.map[item.name]}</div>`;
 
-    // g.filter((d) => d.children)
-    //     .selectAll('text')
-    //     .attr('dx', 3)
-    //     .attr('y', 13)
-    //     .attr('fill', 'white')
-    //     .attr('font-weight', 900)
-    //     .attr('transform', 'translate(0, 0)');
+                // outerDiv.appendChild(innerDiv);
+                outerDiv.appendChild(ref);
+            });
 
-    // g.filter((d) => !d.children)
-    //     .selectAll('text')
-    //     .attr('x', 3)
-    //     .attr('y', 13)
-    //     .attr('fill', 'white')
-    //     .attr('transform', `translate(${20}, ${20})`);
+            tooltip.appendChild(outerDiv);
+            tooltip.classList.add('tooltip');
+            tooltip.style.opacity = '1';
+            tooltip.style.top = `${e.y - 50}px`;
+            tooltip.style.left =
+                e.pageX < 1000 ? `${e.pageX + 50}px` : `${e.pageX - 400}px`;
 
-    svg.selectAll('rect').on('mouseover', (e, n) => {
-        // svg.selectAll(n.data.name).attr('stroke', 'white');
-    });
+            tooltip.appendChild(ref);
+            let portal = document.getElementById('portal');
+            if (portal !== null) {
+                portal.appendChild(tooltip);
+            }
+        })
+        .on('mouseleave', (e, d) => {
+            document.getElementById('svg-tooltip')?.remove();
+            // let parentNode = document.getElementById(d.parent.id);
+            // let parentNodeTitle = document.body.querySelectorAll(
+            //     `[data-id=${d.parent.id}]`,
+            // );
+            // if (parentNode !== null) {
+            //     parentNode.style.fill = '#2A2C36';
+            //     parentNode.style.stroke = 'white';
+
+            //     if (parentNodeTitle !== null) {
+            //         parentNodeTitle[0].style.fill = 'white';
+            //         console.log(parentNodeTitle);
+            //     }
+            // }
+        });
 };
 
 export const MarketMap = () => {
@@ -165,7 +224,7 @@ export const MarketMap = () => {
     // fetch data
     useEffect(() => {
         const controller = new AbortController();
-
+        console.log('text');
         const fetchData = async () => {
             let sec = await axios.get('http://localhost:3000/sec', {
                 signal: controller.signal,
@@ -177,14 +236,40 @@ export const MarketMap = () => {
                 headers: { 'Content-Type': 'application/json' },
             });
 
+            let sparklines = await axios.get(
+                'http://localhost:3000/sparklines',
+                {
+                    signal: controller.signal,
+                    headers: { 'Content-Type': 'application/json' },
+                },
+            );
+
             if (
                 sec?.data?.children.length > 0 &&
                 Object.keys(map.data.nodes).length > 0
             ) {
-                setMarket({ sec: sec?.data, map: map?.data?.nodes });
+                setMarket({
+                    sec: sec?.data,
+                    map: map?.data?.nodes,
+                    sparklines: sparklines.data,
+                });
             }
         };
 
+        let ftLines = async () => {
+            let sparklines = await axios.get(
+                'http://localhost:3000/sparklines',
+                {
+                    signal: controller.signal,
+                    headers: { 'Content-Type': 'application/json' },
+                },
+            );
+
+            if (ref.current !== null) {
+                drawLineChart(sparklines.data['AESE'], ref.current);
+            }
+        };
+        // ftLines();
         fetchData();
 
         return () => controller.abort();
